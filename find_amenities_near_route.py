@@ -5,7 +5,7 @@ import math
 import argparse
 
 # --- Parameters ---
-DISTANCE_STEP = 1000  # meters between sample points (increased to reduce API load)
+DISTANCE_STEP = 500  # meters between sample points (increased to reduce API load)
 SEARCH_RADIUS = 300  # meters (reduced to reduce API load)
 AMENITY_FILTER = r"^(cafe|restaurant|pub|bar|fast_food|toilets|drinking_water|fuel)$"
 
@@ -153,21 +153,30 @@ def add_wp(lat, lon, name, desc, amenity_type=None, tags=None):
     
     # Set symbol and type based on amenity
     if amenity_type:
-        if amenity_type in ['cafe', 'restaurant', 'pub', 'bar', 'fast_food']:
+        if amenity_type == 'cafe':
             wpt.symbol = 'Restaurant'
-            wpt.type = 'Food & Drink'
+            wpt.type = 'Cafe'
+        elif amenity_type == 'restaurant':
+            wpt.symbol = 'Restaurant'
+            wpt.type = 'Restaurant'
+        elif amenity_type in ['pub', 'bar']:
+            wpt.symbol = 'Restaurant'
+            wpt.type = 'Pub/Bar'
+        elif amenity_type == 'fast_food':
+            wpt.symbol = 'Restaurant'
+            wpt.type = 'Fast Food'
         elif amenity_type == 'toilets':
             wpt.symbol = 'Restroom'
-            wpt.type = 'Facilities'
+            wpt.type = 'Toilets'
         elif amenity_type == 'drinking_water':
             wpt.symbol = 'Water Source'
-            wpt.type = 'Facilities'
+            wpt.type = 'Water Source'
         elif amenity_type == 'fuel':
             wpt.symbol = 'Gas Station'
-            wpt.type = 'Transportation'
+            wpt.type = 'Fuel Station'
         elif amenity_type == 'bicycle':  # shop=bicycle
             wpt.symbol = 'Bike Trail'
-            wpt.type = 'Transportation'
+            wpt.type = 'Bike Shop'
         else:
             wpt.symbol = 'Waypoint'
             wpt.type = 'Amenity'
