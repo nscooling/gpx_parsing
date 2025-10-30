@@ -135,7 +135,54 @@ def create_folium_map(gpx_file, output_file):
         group.add_to(m)
 
     # Layer control (shows Waypoints toggle)
-    folium.LayerControl(collapsed=False).add_to(m)
+    folium.LayerControl(collapsed=True).add_to(m)
+
+    # --- Inject custom JavaScript to add "Check/Uncheck All" buttons ---
+    check_all_js = """
+    <script>
+    function addSelectAllControl() {
+    var lc = document.getElementsByClassName('leaflet-control-layers-list')[0];
+    if (!lc) return;
+
+    var container = document.createElement('div');
+    container.style.margin = '4px 0 6px 0';
+    container.style.textAlign = 'center';
+
+    var checkAll = document.createElement('button');
+    checkAll.innerHTML = '✓ Check All';
+    checkAll.style.margin = '2px';
+    checkAll.style.padding = '2px 6px';
+    checkAll.style.border = '1px solid #aaa';
+    checkAll.style.background = '#f8f8f8';
+    checkAll.style.cursor = 'pointer';
+    checkAll.onclick = function() {
+        var boxes = lc.querySelectorAll('input[type="checkbox"]');
+        boxes.forEach(cb => { if (!cb.checked) cb.click(); });
+    };
+
+    var uncheckAll = document.createElement('button');
+    uncheckAll.innerHTML = '✗ Uncheck All';
+    uncheckAll.style.margin = '2px';
+    uncheckAll.style.padding = '2px 6px';
+    uncheckAll.style.border = '1px solid #aaa';
+    uncheckAll.style.background = '#f8f8f8';
+    uncheckAll.style.cursor = 'pointer';
+    uncheckAll.onclick = function() {
+        var boxes = lc.querySelectorAll('input[type="checkbox"]');
+        boxes.forEach(cb => { if (cb.checked) cb.click(); });
+    };
+
+    container.appendChild(checkAll);
+    container.appendChild(uncheckAll);
+    lc.prepend(container);
+    }
+
+    document.addEventListener('DOMContentLoaded', addSelectAllControl);
+    </script>
+    """
+
+    from folium import Element
+    m.get_root().html.add_child(Element(check_all_js))
 
     # Save map
     m.save(output_file)

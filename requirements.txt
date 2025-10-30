@@ -1,0 +1,6 @@
+Flask>=3.0.0
+folium>=0.16.0
+gpxpy>=1.6.2
+overpy>=0.7.0
+branca>=0.7.0
+requests>=2.31.0

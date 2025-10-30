@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GPX Processing Results</title>
+    <meta charset="utf-8" />
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 2rem; }
+        pre {
+            background: #f4f4f4;
+            padding: 1rem;
+            border-radius: 6px;
+            white-space: pre-wrap;
+        }
+        .ok { color: green; font-weight: 600; }
+        .fail { color: red; font-weight: 600; }
+        a.button {
+            display:inline-block; padding:0.6rem 1.2rem; margin-top:1rem;
+            border-radius:4px; background:#0077cc; color:white; text-decoration:none;
+        }
+        a.button:hover { background:#005fa3; }
+    </style>
+</head>
+<body>
+
+<h1>Processing Results</h1>
+
+<p class="{{ 'ok' if success else 'fail' }}">
+    {{ "✓ Enrichment completed successfully." if success else "✗ Enrichment failed." }}
+</p>
+
+{% if success %}
+    <a class="button" href="{{ url_for('download', filename=filename) }}">
+        Download Enriched GPX
+    </a>
+{% endif %}
+
+<h2>Standard Output</h2>
+<pre>{{ stdout or "(no output)" }}</pre>
+
+<h2>Standard Error</h2>
+<pre>{{ stderr or "(no errors)" }}</pre>
+
+<p><a href="{{ url_for('index') }}">← Back to Upload</a></p>
+
+</body>
+</html>

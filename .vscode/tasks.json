@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run syntax check for visualizer",
+			"type": "shell",
+			"command": "python3 -m py_compile visualize_gpx_with_folium.py",
+			"args": [],
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build"
+		}
+	]
+}
