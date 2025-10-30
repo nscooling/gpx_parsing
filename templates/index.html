@@ -33,7 +33,7 @@
 <div class="container">
 
     <h1>GPX Route Enrichment</h1>
-    <p>Select a GPX route to detect nearby amenities (pubs, cafes, bike shops, etc.)</p>
+    <p>Select a GPX route to detect nearby amenities (pubs, cafes, bike shops, etc.). You can tweak sampling settings after the file uploads.</p>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
@@ -48,7 +48,7 @@
             <label for="file">Choose GPX file:</label><br>
             <input type="file" name="file" id="file" accept=".gpx" required>
             <br>
-            <button type="submit">Upload & Process</button>
+            <button type="submit">Upload</button>
         </form>
     </div>
 

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Configure Processing</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 1.5rem; background: #f8f9fb; color: #1f2329; }
+        main { max-width: 780px; margin: auto; }
+        h1 { margin-bottom: 0.5rem; }
+        .panel { background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid #d0d7de; box-shadow: 0 8px 24px rgba(140,149,159,0.15); margin-top: 1.5rem; }
+        label { display: block; font-weight: 600; margin-top: 1rem; }
+        input[type=number] { width: 100%; padding: 0.65rem; border-radius: 6px; border: 1px solid #c1c7cd; font-size: 1rem; box-sizing: border-box; margin-top: 0.35rem; }
+        .actions { margin-top: 1.5rem; display: flex; align-items: center; gap: 1rem; }
+        .button { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.6rem; border-radius: 6px; border: none; background: #1f6feb; color: white; font-size: 1rem; font-weight: 600; cursor: pointer; }
+        .button:hover { background: #1b5fd0; }
+        .button[disabled] { background: #8c959f; cursor: not-allowed; }
+        .hint { font-size: 0.9rem; color: #5b6168; margin-top: 0.35rem; }
+        .processing { display: none; align-items: center; gap: 0.5rem; font-weight: 600; color: #1f2329; }
+        .processing span { display: inline-block; width: 14px; height: 14px; border: 2px solid #1f6feb; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        a { color: #1f6feb; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Configure Processing</h1>
+        <p>The file <strong>{{ filename }}</strong> is ready. Adjust the amenity search parameters below, then start processing.</p>
+
+        <form id="process-form" class="panel" method="post" action="{{ url_for('process', job_id=job_id) }}">
+            <input type="hidden" name="filename" value="{{ filename }}" />
+
+            <label for="distance_step">Sample Distance (meters)</label>
+            <input id="distance_step" name="distance_step" type="number" min="{{ min_distance_step }}" value="{{ distance_step_default }}" required />
+            <div class="hint">Points are sampled every <strong>≥{{ min_distance_step }} m</strong>. Lower values capture more detail but increase Overpass load.</div>
+
+            <label for="search_radius">Search Radius (meters)</label>
+            <input id="search_radius" name="search_radius" type="number" min="50" max="{{ max_search_radius }}" value="{{ search_radius_default }}" required />
+            <div class="hint">Amenities will be searched up to <strong>{{ max_search_radius }} m</strong> away from each sampled point.</div>
+
+            <div class="actions">
+                <button id="process-button" class="button" type="submit">Start Parsing</button>
+                <div id="processing-indicator" class="processing"><span></span>Parsing…</div>
+                <a href="{{ url_for('index') }}">Upload a different file</a>
+            </div>
+        </form>
+    </main>
+
+    <script>
+        const form = document.getElementById('process-form');
+        const button = document.getElementById('process-button');
+        const indicator = document.getElementById('processing-indicator');
+
+        if (form) {
+            form.addEventListener('submit', () => {
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = 'Parsing…';
+                }
+                if (indicator) {
+                    indicator.style.display = 'inline-flex';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

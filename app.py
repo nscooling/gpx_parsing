@@ -72,10 +72,102 @@ def upload():
     input_path = (job_dir / filename).resolve()
     file.save(input_path)
 
-    enriched_name = filename.rsplit(".", 1)[0] + "_amenities.gpx"
-    enriched_path = (job_dir / enriched_name).resolve()
-    map_name = filename.rsplit(".", 1)[0] + "_map.html"
-    map_path = (job_dir / map_name).resolve()
+    # Render configuration screen so user can tweak processing parameters before running
+    return render_template(
+        "configure.html",
+        job_id=job_id,
+        filename=filename,
+        distance_step_default=1000,
+        search_radius_default=300,
+        min_distance_step=500,
+        max_search_radius=1000,
+    )
+
+
+@app.route("/configure/<job_id>", methods=["GET"])
+def configure(job_id):
+    if not job_id.isalnum():
+        flash("Invalid job identifier.", "error")
+        return redirect(url_for("index"))
+
+    job_dir = (WORK_DIR / job_id)
+    if not job_dir.exists():
+        flash("Job not found. Please upload the GPX again.", "error")
+        return redirect(url_for("index"))
+
+    filename = request.args.get("filename")
+    if not filename:
+        flash("Missing file reference. Please re-upload.", "error")
+        return redirect(url_for("index"))
+
+    input_path = (job_dir / filename).resolve()
+    if not input_path.exists() or WORK_DIR not in input_path.parents:
+        flash("Uploaded file could not be located. Please re-upload.", "error")
+        return redirect(url_for("index"))
+
+    def parse_int(value, fallback):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return fallback
+
+    distance_step = parse_int(request.args.get("distance_step"), 1000)
+    if distance_step < 500:
+        distance_step = 500
+
+    search_radius = parse_int(request.args.get("search_radius"), 300)
+    if search_radius > 1000:
+        search_radius = 1000
+    if search_radius < 50:
+        search_radius = 50
+
+    return render_template(
+        "configure.html",
+        job_id=job_id,
+        filename=filename,
+        distance_step_default=distance_step,
+        search_radius_default=search_radius,
+        min_distance_step=500,
+        max_search_radius=1000,
+    )
+@app.route("/process/<job_id>", methods=["POST"])
+def process(job_id):
+    if not job_id.isalnum():
+        flash("Invalid job identifier.", "error")
+        return redirect(url_for("index"))
+
+    job_dir = (WORK_DIR / job_id)
+    if not job_dir.exists():
+        flash("Job not found. Please upload the GPX again.", "error")
+        return redirect(url_for("index"))
+
+    filename = request.form.get("filename")
+    if not filename:
+        flash("Missing original file reference.", "error")
+        return redirect(url_for("index"))
+
+    input_path = (job_dir / filename).resolve()
+    if not input_path.exists() or WORK_DIR not in input_path.parents:
+        flash("Uploaded file could not be located.", "error")
+        return redirect(url_for("index"))
+
+    # Sanitize parameter inputs from the form
+    def parse_int(name, fallback):
+        raw = request.form.get(name)
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return fallback
+
+    distance_step = parse_int("distance_step", 1000)
+    if distance_step < 500:
+        distance_step = 500
+
+    search_radius = parse_int("search_radius", 300)
+    if search_radius > 1000:
+        search_radius = 1000
+    if search_radius < 50:
+        search_radius = 50
 
     enrich_script = (BASE_DIR / "find_amenities_near_route.py").resolve()
 
@@ -83,11 +175,23 @@ def upload():
         flash("Server misconfiguration: find_amenities_near_route.py not found.", "error")
         return redirect(url_for("index"))
 
-    # Run enrichment script
+    enriched_name = filename.rsplit(".", 1)[0] + "_amenities.gpx"
+    enriched_path = (job_dir / enriched_name).resolve()
+    map_name = filename.rsplit(".", 1)[0] + "_map.html"
+    map_path = (job_dir / map_name).resolve()
+
     rc, out, err = run_script(
         enrich_script,
-        [os.fspath(input_path), "-o", os.fspath(enriched_path)],
-        cwd=BASE_DIR
+        [
+            os.fspath(input_path),
+            "-o",
+            os.fspath(enriched_path),
+            "-d",
+            str(distance_step),
+            "-r",
+            str(search_radius),
+        ],
+        cwd=BASE_DIR,
     )
 
     success = rc == 0 and enriched_path.exists()
@@ -103,7 +207,7 @@ def upload():
             rc_map, map_stdout, map_stderr = run_script(
                 vis_script,
                 [os.fspath(enriched_path), "-o", os.fspath(map_path)],
-                cwd=BASE_DIR
+                cwd=BASE_DIR,
             )
             if rc_map != 0 or not map_path.exists():
                 success = False
@@ -130,6 +234,9 @@ def upload():
         map_file=map_name if map_available else None,
         gpx_url=gpx_url,
         map_url=map_url,
+        distance_step=distance_step,
+        search_radius=search_radius,
+        original_filename=filename,
     )
 
 
