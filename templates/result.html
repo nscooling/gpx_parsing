@@ -1,46 +1,74 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>GPX Processing Results</title>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GPX Processing Results</title>
     <style>
-        body { font-family: system-ui, sans-serif; margin: 2rem; }
+        body { font-family: system-ui, sans-serif; margin: 1.5rem; background: #f8f9fb; color: #1f2329; }
+        main { max-width: 1100px; margin: auto; }
+        h1 { margin-bottom: 0.5rem; }
         pre {
-            background: #f4f4f4;
+            background: #f1f4f8;
             padding: 1rem;
-            border-radius: 6px;
+            border-radius: 8px;
             white-space: pre-wrap;
+            border: 1px solid #e2e8f0;
         }
-        .ok { color: green; font-weight: 600; }
-        .fail { color: red; font-weight: 600; }
-        a.button {
-            display:inline-block; padding:0.6rem 1.2rem; margin-top:1rem;
-            border-radius:4px; background:#0077cc; color:white; text-decoration:none;
+        .status { font-weight: 600; margin: 1rem 0; }
+        .ok { color: #1a7f37; }
+        .fail { color: #c62828; }
+        .button {
+            display: inline-block;
+            padding: 0.65rem 1.3rem;
+            border-radius: 6px;
+            background: #1f6feb;
+            color: white;
+            text-decoration: none;
+            margin-right: 0.75rem;
+            margin-bottom: 0.75rem;
         }
-        a.button:hover { background:#005fa3; }
+        .button:hover { background: #1b5fd0; }
+        .panel { background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid #d0d7de; box-shadow: 0 8px 24px rgba(140,149,159,0.15); margin-bottom: 1.5rem; }
+        footer { margin-top: 2rem; font-size: 0.95rem; }
     </style>
 </head>
 <body>
+    <main>
+        <h1>GPX Processing Results</h1>
+        <p class="status {{ 'ok' if success else 'fail' }}">
+            {{ "✓ Processing completed successfully." if success else "✗ Processing failed." }}
+        </p>
 
-<h1>Processing Results</h1>
+        {% if success %}
+        <div class="panel">
+            <h2>Outputs</h2>
+            <p style="color:#555;">Download the enriched GPX file or open the generated static map in a new tab.</p>
+            <div>
+                {% if gpx_file %}
+                <a class="button" href="{{ url_for('download', job_id=job_id, filename=gpx_file) }}">Download Enriched GPX</a>
+                {% endif %}
+                {% if map_file %}
+                <a class="button" href="{{ url_for('download', job_id=job_id, filename=map_file) }}">Download Static HTML Map</a>
+                <a class="button" style="background:#0369a1;" href="{{ map_url }}" target="_blank" rel="noopener">Open Map in New Tab</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
 
-<p class="{{ 'ok' if success else 'fail' }}">
-    {{ "✓ Enrichment completed successfully." if success else "✗ Enrichment failed." }}
-</p>
+        <div class="panel">
+            <h2>Standard Output</h2>
+            <pre>{{ stdout or "(no output)" }}</pre>
+        </div>
 
-{% if success %}
-    <a class="button" href="{{ url_for('download', filename=filename) }}">
-        Download Enriched GPX
-    </a>
-{% endif %}
+        <div class="panel">
+            <h2>Standard Error</h2>
+            <pre>{{ stderr or "(no errors)" }}</pre>
+        </div>
 
-<h2>Standard Output</h2>
-<pre>{{ stdout or "(no output)" }}</pre>
-
-<h2>Standard Error</h2>
-<pre>{{ stderr or "(no errors)" }}</pre>
-
-<p><a href="{{ url_for('index') }}">← Back to Upload</a></p>
-
+        <footer>
+            <a href="{{ url_for('index') }}">← Back to Upload</a>
+        </footer>
+    </main>
 </body>
 </html>
