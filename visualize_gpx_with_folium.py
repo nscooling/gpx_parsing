@@ -22,7 +22,7 @@ def get_amenity_icon_color(amenity_type, symbol):
         type_map = {
             'Cafe': ('coffee', 'orange'),
             'Restaurant': ('cutlery', 'red'),
-            'Pub/Bar': ('glass', 'darkred'),
+            'Pub/Bar': ('beer', 'darkred'),
             'Fast Food': ('cutlery', 'pink'),
             'Toilets': ('male', 'blue'),
             'Water Source': ('tint', 'lightblue'),
