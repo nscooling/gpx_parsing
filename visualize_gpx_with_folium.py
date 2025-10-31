@@ -5,6 +5,7 @@ import argparse
 import os
 from folium import plugins
 from branca.element import Template, MacroElement
+from folium import Element
 import re
 
 def parse_args():
@@ -26,7 +27,7 @@ def get_amenity_icon_color(amenity_type, symbol):
             'Fast Food': ('cutlery', 'pink'),
             'Toilets': ('male', 'blue'),
             'Water Source': ('tint', 'lightblue'),
-            'Fuel Station': ('car', 'orange'),
+            'Fuel Station': ('car', 'darkblue'),
             'Bike Shop': ('bicycle', 'green'),
         }
         if amenity_type in type_map:
@@ -37,7 +38,7 @@ def get_amenity_icon_color(amenity_type, symbol):
         'Restaurant': ('cutlery', 'red'),
         'Restroom': ('male', 'blue'),
         'Water Source': ('tint', 'lightblue'),
-        'Gas Station': ('car', 'orange'),
+    'Gas Station': ('car', 'darkblue'),
         'Bike Trail': ('bicycle', 'green'),
         'Waypoint': ('info-circle', 'gray'),
     }
@@ -388,6 +389,63 @@ def create_folium_map(gpx_file, output_file):
     macro = MacroElement()
     macro._template = toggle_tpl
     m.get_root().add_child(macro)
+
+    # LayerControl toolbar helper to restore check-all/uncheck-all actions
+    layer_control_js = """
+    <script>
+    (function() {
+        function enhanceLayerControl() {
+            var list = document.querySelector('.leaflet-control-layers-list');
+            if (!list || list.querySelector('.wpt-layer-actions')) { return; }
+
+            var container = document.createElement('div');
+            container.className = 'wpt-layer-actions';
+            container.style.margin = '4px 0 6px';
+            container.style.display = 'flex';
+            container.style.gap = '6px';
+
+            function makeButton(label) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = label;
+                btn.style.padding = '2px 6px';
+                btn.style.border = '1px solid #bbb';
+                btn.style.background = '#f6f8fa';
+                btn.style.cursor = 'pointer';
+                btn.style.fontSize = '11px';
+                btn.style.lineHeight = '1.2';
+                btn.style.borderRadius = '3px';
+                return btn;
+            }
+
+            var allBtn = makeButton('All');
+            allBtn.addEventListener('click', function(ev) {
+                ev.preventDefault();
+                var boxes = list.querySelectorAll('input[type="checkbox"]');
+                boxes.forEach(function(cb) { if (!cb.checked) { cb.click(); } });
+            });
+
+            var noneBtn = makeButton('None');
+            noneBtn.addEventListener('click', function(ev) {
+                ev.preventDefault();
+                var boxes = list.querySelectorAll('input[type="checkbox"]');
+                boxes.forEach(function(cb) { if (cb.checked) { cb.click(); } });
+            });
+
+            container.appendChild(allBtn);
+            container.appendChild(noneBtn);
+            list.insertBefore(container, list.firstChild);
+        }
+
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            setTimeout(enhanceLayerControl, 0);
+        } else {
+            document.addEventListener('DOMContentLoaded', enhanceLayerControl);
+        }
+    })();
+    </script>
+    """
+    m.get_root().html.add_child(Element(layer_control_js))
 
     # Save map
     m.save(output_file)

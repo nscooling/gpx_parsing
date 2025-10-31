@@ -11,6 +11,7 @@
         .panel { background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid #d0d7de; box-shadow: 0 8px 24px rgba(140,149,159,0.15); margin-top: 1.5rem; }
         label { display: block; font-weight: 600; margin-top: 1rem; }
         input[type=number] { width: 100%; padding: 0.65rem; border-radius: 6px; border: 1px solid #c1c7cd; font-size: 1rem; box-sizing: border-box; margin-top: 0.35rem; }
+    .checkbox-row { margin-top: 1.2rem; display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; }
         .actions { margin-top: 1.5rem; display: flex; align-items: center; gap: 1rem; }
         .button { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.6rem; border-radius: 6px; border: none; background: #1f6feb; color: white; font-size: 1rem; font-weight: 600; cursor: pointer; }
         .button:hover { background: #1b5fd0; }
@@ -37,6 +38,11 @@
             <label for="search_radius">Search Radius (meters)</label>
             <input id="search_radius" name="search_radius" type="number" min="50" max="{{ max_search_radius }}" value="{{ search_radius_default }}" required />
             <div class="hint">Amenities will be searched up to <strong>{{ max_search_radius }} m</strong> away from each sampled point.</div>
+
+            <div class="checkbox-row">
+                <input type="checkbox" id="no_cache" name="no_cache" {% if no_cache_default %}checked{% endif %} />
+                <label for="no_cache" style="margin-top:0;font-weight:500;">Disable Overpass cache for this run</label>
+            </div>
 
             <div class="actions">
                 <button id="process-button" class="button" type="submit">Start Parsing</button>

@@ -81,6 +81,7 @@ def upload():
         search_radius_default=300,
         min_distance_step=500,
         max_search_radius=1000,
+        no_cache_default=False,
     )
 
 
@@ -121,6 +122,8 @@ def configure(job_id):
     if search_radius < 50:
         search_radius = 50
 
+    no_cache = request.args.get("no_cache") == "1"
+
     return render_template(
         "configure.html",
         job_id=job_id,
@@ -129,6 +132,7 @@ def configure(job_id):
         search_radius_default=search_radius,
         min_distance_step=500,
         max_search_radius=1000,
+        no_cache_default=no_cache,
     )
 @app.route("/process/<job_id>", methods=["POST"])
 def process(job_id):
@@ -169,6 +173,8 @@ def process(job_id):
     if search_radius < 50:
         search_radius = 50
 
+    use_cache = request.form.get("no_cache") != "on"
+
     enrich_script = (BASE_DIR / "find_amenities_near_route.py").resolve()
 
     if not enrich_script.exists():
@@ -180,17 +186,21 @@ def process(job_id):
     map_name = filename.rsplit(".", 1)[0] + "_map.html"
     map_path = (job_dir / map_name).resolve()
 
+    args = [
+        os.fspath(input_path),
+        "-o",
+        os.fspath(enriched_path),
+        "-d",
+        str(distance_step),
+        "-r",
+        str(search_radius),
+    ]
+    if not use_cache:
+        args.append("--no-cache")
+
     rc, out, err = run_script(
         enrich_script,
-        [
-            os.fspath(input_path),
-            "-o",
-            os.fspath(enriched_path),
-            "-d",
-            str(distance_step),
-            "-r",
-            str(search_radius),
-        ],
+        args,
         cwd=BASE_DIR,
     )
 
@@ -237,6 +247,7 @@ def process(job_id):
         distance_step=distance_step,
         search_radius=search_radius,
         original_filename=filename,
+    no_cache=not use_cache,
     )
 
 

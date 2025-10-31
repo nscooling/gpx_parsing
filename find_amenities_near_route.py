@@ -15,7 +15,8 @@ from types import SimpleNamespace
 # --- Parameters ---
 DISTANCE_STEP = 500  # meters between sample points (increased to reduce API load)
 SEARCH_RADIUS = 300  # meters (reduced to reduce API load)
-AMENITY_FILTER = r"^(cafe|restaurant|pub|bar|fast_food|toilets|drinking_water|fuel)$"
+AMENITY_FILTER = r"^(cafe|coffee_shop|restaurant|pub|bar|fast_food|toilets|drinking_water|fuel)$"
+SHOP_FILTER = r"^(cafe|coffee|coffee_shop)$"
 
 # --- Helper: XML escaping function ---
 def escape_xml(text):
@@ -95,7 +96,7 @@ args = parse_args()
 # --- Parameters ---
 DISTANCE_STEP = args.distance_step  # meters between sample points
 SEARCH_RADIUS = args.search_radius  # meters
-AMENITY_FILTER = r"^(cafe|restaurant|pub|bar|fast_food|toilets|drinking_water|fuel)$"
+AMENITY_FILTER = r"^(cafe|coffee|coffee_shop|restaurant|pub|bar|fast_food|toilets|drinking_water|fuel)$"
 
 # --- Helper: haversine distance (m) ---
 def haversine(lat1, lon1, lat2, lon2):
@@ -136,7 +137,7 @@ def build_cache_key(points_list):
     except Exception:
         file_sig = os.path.abspath(args.input_file)
     scope = "nodes" if args.nodes_only else "nodes_ways"
-    key = f"v1|{file_sig}|step={args.distance_step}|rad={args.search_radius}|filter={AMENITY_FILTER}|scope={scope}|pts={pts_digest}"
+    key = f"v2|{file_sig}|step={args.distance_step}|rad={args.search_radius}|filter={AMENITY_FILTER}|shop={SHOP_FILTER}|scope={scope}|pts={pts_digest}"
     digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
     return digest
 
@@ -194,13 +195,17 @@ def build_query_for_points(pts):
         if args.nodes_only:
             parts.append(f"""
               node["amenity"~"{AMENITY_FILTER}"](around:{SEARCH_RADIUS},{lat},{lon});
+              node["shop"~"{SHOP_FILTER}"](around:{SEARCH_RADIUS},{lat},{lon});
               node["shop"="bicycle"](around:{SEARCH_RADIUS},{lat},{lon});
             """)
         else:
             parts.append(f"""
               node["amenity"~"{AMENITY_FILTER}"](around:{SEARCH_RADIUS},{lat},{lon});
               way["amenity"~"{AMENITY_FILTER}"](around:{SEARCH_RADIUS},{lat},{lon});
+              node["shop"~"{SHOP_FILTER}"](around:{SEARCH_RADIUS},{lat},{lon});
+              way["shop"~"{SHOP_FILTER}"](around:{SEARCH_RADIUS},{lat},{lon});
               node["shop"="bicycle"](around:{SEARCH_RADIUS},{lat},{lon});
+              way["shop"="bicycle"](around:{SEARCH_RADIUS},{lat},{lon});
             """)
     # Use provided timeout
     return f"[out:json][timeout:{args.overpass_timeout}];(\n{''.join(parts)});\nout center meta;"
@@ -378,7 +383,7 @@ def add_wp(lat, lon, name, desc, amenity_type=None, tags=None):
     
     # Set symbol and type based on amenity
     if amenity_type:
-        if amenity_type == 'cafe':
+        if amenity_type in ['cafe', 'coffee', 'coffee_shop']:
             wpt.symbol = 'Restaurant'
             wpt.type = 'Cafe'
         elif amenity_type == 'restaurant':
@@ -425,26 +430,32 @@ for n in result_nodes:
         print(".", end="", flush=True)
 
 for w in result_ways:
-    if w.id in seen: continue
+    if w.id in seen:
+        continue
     seen.add(w.id)
-    # Calculate center of way by averaging node coordinates
     try:
-        if w.nodes:
-            # Prefer center coords if provided by Overpass (with out center)
-            center_lat = getattr(w, 'center_lat', None)
-            center_lon = getattr(w, 'center_lon', None)
-            if center_lat is None or center_lon is None:
+        center_lat = getattr(w, 'center_lat', None)
+        center_lon = getattr(w, 'center_lon', None)
+
+        if (center_lat is None or center_lon is None) and getattr(w, 'nodes', None):
+            try:
                 center_lat = sum(node.lat for node in w.nodes) / len(w.nodes)
                 center_lon = sum(node.lon for node in w.nodes) / len(w.nodes)
-            desc = ", ".join(f"{k}={v}" for k, v in w.tags.items() if k in ("amenity", "shop"))
-            amenity_type = w.tags.get("amenity") or w.tags.get("shop")
-            add_wp(center_lat, center_lon, w.tags.get("name", "Amenity"), desc, amenity_type, w.tags)
-            
-            processed_count += 1
-            if processed_count % 50 == 0:
-                print(".", end="", flush=True)
+            except Exception:
+                center_lat = center_lon = None
+
+        if center_lat is None or center_lon is None:
+            # Skip if we truly cannot place the way
+            continue
+
+        desc = ", ".join(f"{k}={v}" for k, v in w.tags.items() if k in ("amenity", "shop"))
+        amenity_type = w.tags.get("amenity") or w.tags.get("shop")
+        add_wp(center_lat, center_lon, w.tags.get("name", "Amenity"), desc, amenity_type, w.tags)
+
+        processed_count += 1
+        if processed_count % 50 == 0:
+            print(".", end="", flush=True)
     except overpy.exception.DataIncomplete:
-        # Skip ways where node data is incomplete
         continue
 
 if processed_count % 50 != 0:

@@ -47,6 +47,9 @@
             {% if distance_step and search_radius %}
             <p style="margin-top:0.5rem;color:#5b6168;font-size:0.95rem;">Parameters: sample distance {{ distance_step }}&nbsp;m · search radius {{ search_radius }}&nbsp;m.</p>
             {% endif %}
+            {% if no_cache %}
+            <p style="margin-top:0.25rem;color:#5b6168;font-size:0.9rem;">Cache disabled for this run.</p>
+            {% endif %}
             <div>
                 {% if gpx_file %}
                 <a class="button" href="{{ url_for('download', job_id=job_id, filename=gpx_file) }}">Download Enriched GPX</a>
@@ -56,7 +59,7 @@
                 <a class="button" style="background:#0369a1;" href="{{ map_url }}" target="_blank" rel="noopener">Open Map in New Tab</a>
                 {% endif %}
                 {% if success and original_filename %}
-                <a class="button" style="background:#5b636a;" href="{{ url_for('configure', job_id=job_id, filename=original_filename, distance_step=distance_step, search_radius=search_radius) }}">Adjust Parameters</a>
+                <a class="button" style="background:#5b636a;" href="{{ url_for('configure', job_id=job_id, filename=original_filename, distance_step=distance_step, search_radius=search_radius, no_cache='1' if no_cache else '0') }}">Adjust Parameters</a>
                 {% endif %}
                 <a class="button" style="background:#444c56;" href="{{ url_for('index') }}">Upload New GPX</a>
             </div>
