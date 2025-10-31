@@ -45,6 +45,7 @@
 
     <div class="card">
         <form method="POST" action="{{ url_for('upload') }}" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label for="file">Choose GPX file:</label><br>
             <input type="file" name="file" id="file" accept=".gpx" required>
             <br>

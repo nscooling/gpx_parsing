@@ -6,15 +6,36 @@ from flask import (
     url_for,
     flash,
     send_file,
+    abort,
 )
 from pathlib import Path
 from werkzeug.utils import secure_filename
 import subprocess
 import uuid
 import os
+import secrets
+import mimetypes
+
+from flask_wtf import CSRFProtect
+from flask_wtf.csrf import CSRFError, generate_csrf
+
+
+ALLOWED_EXTENSIONS = {".gpx"}
+ALLOWED_MIME_TYPES = {
+    "application/gpx+xml",
+    "application/xml",
+    "text/xml",
+}
 
 app = Flask(__name__)
-app.secret_key = "some_secret_string_here"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
+app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_CONTENT_LENGTH", 20 * 1024 * 1024))
+csrf = CSRFProtect(app)
+
+
+@app.context_processor
+def inject_csrf_token():
+    return dict(csrf_token=lambda: generate_csrf())
 
 # Always use absolute paths and ensure writable directory for files
 BASE_DIR = Path(__file__).resolve().parent
@@ -64,6 +85,23 @@ def upload():
     if not filename:
         flash("Invalid filename.", "error")
         return redirect(url_for("index"))
+
+    ext = Path(filename).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        flash("Unsupported file type. Please upload a GPX file.", "error")
+        return redirect(url_for("index"))
+
+    sniff_type = file.mimetype or ""
+    if sniff_type and sniff_type not in ALLOWED_MIME_TYPES:
+        flash("Unsupported MIME type. Please upload a valid GPX file.", "error")
+        return redirect(url_for("index"))
+
+    # Basic magic sniff using Python's mimetypes as fallback if client provided nothing useful
+    if not sniff_type:
+        guessed, _ = mimetypes.guess_type(filename)
+        if guessed and guessed not in ALLOWED_MIME_TYPES:
+            flash("Unsupported MIME type. Please upload a valid GPX file.", "error")
+            return redirect(url_for("index"))
 
     job_id = uuid.uuid4().hex
     job_dir = (WORK_DIR / job_id)
@@ -210,12 +248,13 @@ def process(job_id):
     map_stderr = ""
     if success:
         vis_script = (BASE_DIR / "visualize_gpx_with_folium.py").resolve()
-        if not vis_script.exists():
-            vis_script = (BASE_DIR / "generate_map.py").resolve()
+        fallback_script = (BASE_DIR / "generate_map.py").resolve()
 
-        if vis_script.exists():
+        script_to_use = vis_script if vis_script.exists() else fallback_script if fallback_script.exists() else None
+
+        if script_to_use:
             rc_map, map_stdout, map_stderr = run_script(
-                vis_script,
+                script_to_use,
                 [os.fspath(enriched_path), "-o", os.fspath(map_path)],
                 cwd=BASE_DIR,
             )
@@ -271,6 +310,15 @@ def artifact(job_id, filename):
     return send_file(file_path)
 
 
+@app.errorhandler(CSRFError)
+def handle_csrf_error(err):
+    flash("Security token mismatch. Please try again.", "error")
+    return redirect(url_for("index"))
+
+
 if __name__ == "__main__":
-    # Recommended: use `flask run` in dev. This fallback is fine.
-    app.run(debug=True, port=5050)
+    # Recommended: use gunicorn/uwsgi in production; this remains for local dev only.
+    debug_enabled = os.environ.get("FLASK_DEBUG") == "1"
+    port = int(os.environ.get("PORT", 5050))
+    host = os.environ.get("HOST", "127.0.0.1")
+    app.run(debug=debug_enabled, host=host, port=port)

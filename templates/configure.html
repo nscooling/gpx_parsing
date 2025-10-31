@@ -29,6 +29,7 @@
         <p>The file <strong>{{ filename }}</strong> is ready. Adjust the amenity search parameters below, then start processing.</p>
 
         <form id="process-form" class="panel" method="post" action="{{ url_for('process', job_id=job_id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="filename" value="{{ filename }}" />
 
             <label for="distance_step">Sample Distance (meters)</label>

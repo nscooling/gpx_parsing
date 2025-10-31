@@ -7,6 +7,7 @@ from folium import plugins
 from branca.element import Template, MacroElement
 from folium import Element
 import re
+import string
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Visualize GPX route with amenities using Folium")
@@ -72,6 +73,7 @@ def create_folium_map(gpx_file, output_file):
         zoom_start=12,
         tiles='OpenStreetMap'
     )
+    map_var = m.get_name()
     
     # Add the route as a polyline
     route_line = folium.PolyLine(
@@ -104,6 +106,10 @@ def create_folium_map(gpx_file, output_file):
     # Add waypoints (amenities)
     amenity_groups = {}
     marker_meta = []  # collect marker JS ids and labels for the toggle control
+    use_cluster = len(gpx.waypoints) > 50
+    marker_cluster = None
+    if use_cluster:
+        marker_cluster = plugins.MarkerCluster(name="Amenities").add_to(m)
     
     def parse_description(desc: str):
         """Extract distance fields and return (clean_desc, from_km, remain_km, off_m)."""
@@ -177,79 +183,227 @@ def create_folium_map(gpx_file, output_file):
         
         # Group markers by type for layer control
         if amenity_type not in amenity_groups:
-            amenity_groups[amenity_type] = folium.FeatureGroup(name=amenity_type)
-            amenity_groups[amenity_type].add_to(m)
-        
-        marker.add_to(amenity_groups[amenity_type])
+            if use_cluster and marker_cluster is not None:
+                group = plugins.FeatureGroupSubGroup(marker_cluster, name=amenity_type)
+            else:
+                group = folium.FeatureGroup(name=amenity_type)
+            amenity_groups[amenity_type] = group
+            group.add_to(m)
+
+        group = amenity_groups[amenity_type]
+        marker.add_to(group)
         # Record marker meta for interactive toggle
         try:
             marker_meta.append({
                 "id": marker.get_name(),
                 "label": f"{name} ({amenity_type})",
-                "cluster": None
+                "cluster": group.get_name()
             })
         except Exception:
             pass
     
-    # Add layer control to toggle amenity types
-    folium.LayerControl().add_to(m)
-    
-    # Add a marker cluster for better performance with many markers
-    if len(gpx.waypoints) > 50:
-        marker_cluster = plugins.MarkerCluster().add_to(m)
-        cluster_js_name = marker_cluster.get_name()
-        
-        for waypoint in gpx.waypoints:
-            lat, lon = waypoint.latitude, waypoint.longitude
-            name = waypoint.name or 'Unnamed'
-            description = waypoint.description or ''
-            symbol = waypoint.symbol or 'Waypoint'
-            amenity_type = waypoint.type or 'Amenity'
-            
-            icon_name, color = get_amenity_icon_color(amenity_type, symbol)
+    # Build compact legend referencing the amenity types present on this map
+    legend_items = []
+    for amenity_type in sorted(amenity_groups.keys()):
+        icon_name, color = get_amenity_icon_color(amenity_type, "Waypoint")
+        layer_js = amenity_groups[amenity_type].get_name()
+        legend_items.append({
+            "type": amenity_type,
+            "icon": icon_name,
+            "color": color,
+            "layer": layer_js,
+        })
 
-            link_html = ""
-            if getattr(waypoint, 'link', None):
-                link_text = getattr(waypoint, 'link_text', None) or getattr(waypoint, 'link', '')
-                link_href = getattr(waypoint, 'link', '')
-                link_html = f"<br>Website: <a href=\"{link_href}\" target=\"_blank\" rel=\"noopener\">{link_text}</a>"
+    if legend_items:
+        legend_entries_html = "".join(
+            f'<label class="legend-item"><input type="checkbox" data-layer="{item["layer"]}" checked>'
+            f'<span class="legend-swatch" style="background:{item["color"]};"></span>'
+            f'<span class="legend-label"><i class="fa fa-{item["icon"]}"></i> {item["type"]}</span>'
+            '</label>'
+            for item in legend_items
+        )
 
-            clean_desc, start_km, remain_km, off_m = parse_description(description)
-            dist_lines = []
-            if start_km is not None:
-                dist_lines.append(f"From start: {start_km:.1f} km")
-            if remain_km is not None:
-                dist_lines.append(f"Remaining: {remain_km:.1f} km")
-            if off_m is not None:
-                dist_lines.append(f"Off route: {off_m} m")
-            dist_html = "<br>".join(dist_lines)
+        legend_template_str = string.Template("""
+{% macro html(this, kwargs) %}
+<style>
+    .map-legend {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        z-index: 9999;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 10px 12px;
+        border-radius: 6px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+        font: 12px/1.3 Arial, sans-serif;
+        min-width: 180px;
+    }
+    .map-legend .legend-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+    }
+    .map-legend .legend-header h4 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+        color: #1f2329;
+    }
+    .map-legend .legend-collapse-btn {
+        border: 1px solid #bbb;
+        background: #f6f8fa;
+        padding: 0 6px;
+        cursor: pointer;
+        border-radius: 3px;
+        font-size: 13px;
+        line-height: 1.4;
+    }
+    .map-legend .legend-controls {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 6px;
+    }
+    .map-legend .legend-btn {
+        border: 1px solid #bbb;
+        background: #f6f8fa;
+        padding: 2px 6px;
+        cursor: pointer;
+        border-radius: 3px;
+        font-size: 11px;
+        line-height: 1.2;
+    }
+    .map-legend .legend-btn:focus,
+    .map-legend .legend-collapse-btn:focus {
+        outline: 2px solid #0969da;
+        outline-offset: 1px;
+    }
+    .map-legend .legend-body {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .map-legend .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: #333;
+    }
+    .map-legend .legend-item input {
+        margin: 0;
+    }
+    .map-legend .legend-swatch {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2);
+    }
+    .map-legend .legend-label i {
+        margin-right: 4px;
+        color: #555;
+    }
+    .map-legend.collapsed .legend-controls,
+    .map-legend.collapsed .legend-body {
+        display: none;
+    }
+</style>
+<div class="map-legend" id="amenity-legend" data-enhanced="false">
+    <div class="legend-header">
+        <h4>Amenities</h4>
+        <button type="button" class="legend-collapse-btn" aria-expanded="true" title="Collapse legend">-</button>
+    </div>
+    <div class="legend-controls">
+        <button type="button" class="legend-btn legend-btn-all">All</button>
+        <button type="button" class="legend-btn legend-btn-none">None</button>
+    </div>
+    <div class="legend-body">
+        $legend_entries_html
+    </div>
+</div>
+<script>
+(function() {
+    var mapName = "$map_var";
+    function getMap() {
+        try { return window[mapName]; } catch (err) { return null; }
+    }
+    function setup() {
+        var map = getMap();
+        var legend = document.getElementById("amenity-legend");
+        if (!map || !legend) {
+            setTimeout(setup, 120);
+            return;
+        }
+        if (legend.dataset.enhanced === "true") {
+            return;
+        }
+        legend.dataset.enhanced = "true";
+        var toggles = Array.prototype.slice.call(legend.querySelectorAll('input[type="checkbox"]'));
+        function getLayer(name) {
+            try { return window[name]; } catch (err) { return null; }
+        }
+        function setLayer(name, show) {
+            var layer = getLayer(name);
+            if (!layer) { return; }
+            if (show) {
+                if (!map.hasLayer(layer)) { map.addLayer(layer); }
+            } else {
+                if (map.hasLayer(layer)) { map.removeLayer(layer); }
+            }
+        }
+        toggles.forEach(function(cb) {
+            cb.addEventListener("change", function() {
+                setLayer(cb.dataset.layer, cb.checked);
+            });
+        });
+        function setAll(flag) {
+            toggles.forEach(function(cb) {
+                if (cb.checked !== flag) { cb.checked = flag; }
+                setLayer(cb.dataset.layer, flag);
+            });
+        }
+        var btnAll = legend.querySelector(".legend-btn-all");
+        if (btnAll) {
+            btnAll.addEventListener("click", function(e) {
+                e.preventDefault();
+                setAll(true);
+            });
+        }
+        var btnNone = legend.querySelector(".legend-btn-none");
+        if (btnNone) {
+            btnNone.addEventListener("click", function(e) {
+                e.preventDefault();
+                setAll(false);
+            });
+        }
+        var collapseBtn = legend.querySelector(".legend-collapse-btn");
+        if (collapseBtn) {
+            collapseBtn.addEventListener("click", function(e) {
+                e.preventDefault();
+                var collapsed = legend.classList.toggle("collapsed");
+                collapseBtn.textContent = collapsed ? "+" : "-";
+                collapseBtn.setAttribute("aria-expanded", String(!collapsed));
+            });
+        }
+    }
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", setup);
+    } else {
+        setup();
+    }
+})();
+</script>
+{% endmacro %}
+""")
 
-            desc_html = f"<br><em>{clean_desc}</em>" if clean_desc else ""
-            distances_block = f"<div style=\"margin-top:4px;color:#333\">{dist_html}</div>" if dist_html else ""
-            popup_content = f"""
-            <b>{name}</b><br>
-            Type: {amenity_type}
-            {distances_block}
-            {desc_html}
-            {link_html}
-            """
+        legend_template = legend_template_str.substitute(
+            legend_entries_html=legend_entries_html,
+            map_var=map_var,
+        )
 
-            marker = folium.Marker(
-                [lat, lon],
-                popup=folium.Popup(popup_content, max_width=300),
-                tooltip=f"{name} ({amenity_type})",
-                icon=folium.Icon(color=color, icon=icon_name, prefix='fa')
-            )
-            marker.add_to(marker_cluster)
-            # Record marker meta for interactive toggle with cluster reference
-            try:
-                marker_meta.append({
-                    "id": marker.get_name(),
-                    "label": f"{name} ({amenity_type})",
-                    "cluster": cluster_js_name
-                })
-            except Exception:
-                pass
+        legend_macro = MacroElement()
+        legend_macro._template = Template(legend_template)
+        m.get_root().add_child(legend_macro)
     
     # Add fullscreen button
     plugins.Fullscreen().add_to(m)
@@ -360,13 +514,15 @@ def create_folium_map(gpx_file, output_file):
             }
         }
 
-        // Re-apply hidden set when overlays are toggled (LayerControl)
-        map.on('overlayadd', function() {
+        function reapplyHidden() {
             window._wptHidden.forEach(function(id) {
                 var rec = window._wptRegistry[id]; if (!rec || !rec.marker) return;
-                try { if (rec.cluster) rec.cluster.removeLayer(rec.marker); else if (map.hasLayer(rec.marker)) map.removeLayer(rec.marker); } catch(err) {}
+                try { if (rec.cluster) { rec.cluster.removeLayer(rec.marker); } else if (map.hasLayer(rec.marker)) { map.removeLayer(rec.marker); } } catch(err){}
             });
-        });
+        }
+
+        map.on('overlayadd', reapplyHidden);
+        map.on('layeradd', function() { reapplyHidden(); });
 
         new Control().addTo(map);
     }
@@ -391,62 +547,6 @@ def create_folium_map(gpx_file, output_file):
     m.get_root().add_child(macro)
 
     # LayerControl toolbar helper to restore check-all/uncheck-all actions
-    layer_control_js = """
-    <script>
-    (function() {
-        function enhanceLayerControl() {
-            var list = document.querySelector('.leaflet-control-layers-list');
-            if (!list || list.querySelector('.wpt-layer-actions')) { return; }
-
-            var container = document.createElement('div');
-            container.className = 'wpt-layer-actions';
-            container.style.margin = '4px 0 6px';
-            container.style.display = 'flex';
-            container.style.gap = '6px';
-
-            function makeButton(label) {
-                var btn = document.createElement('button');
-                btn.type = 'button';
-                btn.textContent = label;
-                btn.style.padding = '2px 6px';
-                btn.style.border = '1px solid #bbb';
-                btn.style.background = '#f6f8fa';
-                btn.style.cursor = 'pointer';
-                btn.style.fontSize = '11px';
-                btn.style.lineHeight = '1.2';
-                btn.style.borderRadius = '3px';
-                return btn;
-            }
-
-            var allBtn = makeButton('All');
-            allBtn.addEventListener('click', function(ev) {
-                ev.preventDefault();
-                var boxes = list.querySelectorAll('input[type="checkbox"]');
-                boxes.forEach(function(cb) { if (!cb.checked) { cb.click(); } });
-            });
-
-            var noneBtn = makeButton('None');
-            noneBtn.addEventListener('click', function(ev) {
-                ev.preventDefault();
-                var boxes = list.querySelectorAll('input[type="checkbox"]');
-                boxes.forEach(function(cb) { if (cb.checked) { cb.click(); } });
-            });
-
-            container.appendChild(allBtn);
-            container.appendChild(noneBtn);
-            list.insertBefore(container, list.firstChild);
-        }
-
-        if (document.readyState === 'complete' || document.readyState === 'interactive') {
-            setTimeout(enhanceLayerControl, 0);
-        } else {
-            document.addEventListener('DOMContentLoaded', enhanceLayerControl);
-        }
-    })();
-    </script>
-    """
-    m.get_root().html.add_child(Element(layer_control_js))
-
     # Save map
     m.save(output_file)
     print(f"Interactive map saved to: {output_file}")

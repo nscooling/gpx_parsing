@@ -3,9 +3,7 @@ FROM python:3.13-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    FLASK_APP=app.py \
-    FLASK_RUN_HOST=0.0.0.0 \
-    FLASK_RUN_PORT=5050
+    PORT=5050
 
 WORKDIR /app
 
@@ -19,4 +17,4 @@ RUN mkdir -p uploads
 
 EXPOSE 5050
 
-CMD ["flask", "run"]
+CMD ["sh", "-c", "gunicorn --timeout ${GUNICORN_TIMEOUT:-180} --bind 0.0.0.0:${PORT:-5050} app:app"]

@@ -1,4 +1,11 @@
 .cache/overpass
-uploads
-__pycache__
+uploads/
 .DS_Store
+bin/*
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.swp
+.env
+lib/
