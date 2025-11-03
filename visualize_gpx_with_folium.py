@@ -63,6 +63,13 @@ def create_folium_map(gpx_file, output_file):
         print("No track points found in GPX file")
         return
     
+    # Bounding box for the entire route so we can fit the map view easily
+    route_bounds = None
+    if track_points:
+        lats = [pt[0] for pt in track_points]
+        lons = [pt[1] for pt in track_points]
+        route_bounds = [[min(lats), min(lons)], [max(lats), max(lons)]]
+
     # Calculate map center
     center_lat = sum(p[0] for p in track_points) / len(track_points)
     center_lon = sum(p[1] for p in track_points) / len(track_points)
@@ -74,6 +81,9 @@ def create_folium_map(gpx_file, output_file):
         tiles='OpenStreetMap'
     )
     map_var = m.get_name()
+
+    if route_bounds:
+        m.fit_bounds(route_bounds)
     
     # Add the route as a polyline
     route_line = folium.PolyLine(
@@ -410,6 +420,67 @@ def create_folium_map(gpx_file, output_file):
     
     # Add measure control
     plugins.MeasureControl().add_to(m)
+
+    if route_bounds:
+        import json as _json
+        bounds_json = _json.dumps(route_bounds)
+        fit_control_tpl = string.Template("""
+<script>
+(function() {
+    var mapName = "$map_var";
+    var boundsData = $bounds_json;
+    if (!boundsData) { return; }
+
+    function getMap() {
+        try { return window[mapName]; } catch (err) { return null; }
+    }
+
+    function ensureMap(attempts) {
+        var map = getMap();
+        if (!map) {
+            if (attempts > 0) { setTimeout(function() { ensureMap(attempts - 1); }, 120); }
+            return;
+        }
+
+        var bounds = L.latLngBounds(boundsData);
+
+        var FitControl = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: function(map) {
+                var container = L.DomUtil.create('div', 'leaflet-control fit-route-control');
+                var btn = L.DomUtil.create('button', '', container);
+                btn.type = 'button';
+                btn.textContent = 'Fit Route';
+                btn.setAttribute('title', 'Zoom to show the full route');
+                btn.style.cursor = 'pointer';
+                btn.style.padding = '4px 10px';
+                btn.style.background = '#ffffff';
+                btn.style.border = '1px solid rgba(31,35,41,0.25)';
+                btn.style.borderRadius = '4px';
+                btn.style.boxShadow = '0 1px 2px rgba(31,35,41,0.25)';
+
+                btn.addEventListener('mouseenter', function() { btn.style.background = '#f6f8fa'; });
+                btn.addEventListener('mouseleave', function() { btn.style.background = '#ffffff'; });
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    map.fitBounds(bounds, { padding: [20, 20] });
+                });
+
+                L.DomEvent.disableClickPropagation(container);
+                L.DomEvent.disableScrollPropagation(container);
+                return container;
+            }
+        });
+
+        map.addControl(new FitControl());
+    }
+
+    ensureMap(50);
+})();
+</script>
+""")
+        fit_control_js = fit_control_tpl.substitute(map_var=map_var, bounds_json=bounds_json)
+        m.get_root().html.add_child(Element(fit_control_js))
 
     # Inject interactive waypoint toggle control (per-marker checkboxes)
     import json as _json
