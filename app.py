@@ -68,6 +68,65 @@ def run_script(script: Path, args: list, cwd: Path):
     return proc.returncode, proc.stdout, proc.stderr
 
 
+def extract_map_stats(stdout: str):
+    """Pull the map statistics section from generator stdout."""
+    if not stdout:
+        return []
+
+    stats = []
+    in_section = False
+    current_parent = None
+
+    for raw_line in stdout.splitlines():
+        line = raw_line.rstrip()
+        stripped = line.strip()
+
+        if not in_section:
+            if stripped.lower().startswith("map statistics"):
+                in_section = True
+            continue
+
+        if not stripped:
+            if stats:
+                break
+            continue
+
+        if raw_line.startswith("  - "):
+            content = stripped[2:].strip() if stripped.startswith("- ") else stripped
+            if ":" in content:
+                label, value = [part.strip() for part in content.split(":", 1)]
+            else:
+                label, value = content, ""
+            if current_parent is not None:
+                current_parent.setdefault("children", []).append({
+                    "label": label,
+                    "value": value,
+                })
+            continue
+
+        if stripped.startswith("- "):
+            content = stripped[2:]
+            if ":" in content:
+                label, value = [part.strip() for part in content.split(":", 1)]
+            else:
+                label, value = content.strip(), ""
+            entry = {"label": label, "value": value, "children": []}
+            stats.append(entry)
+            current_parent = entry
+            continue
+
+        # Any other text ends the stats block once we've begun collecting
+        if stats:
+            break
+
+    # Drop empty children arrays for cleaner templates
+    for entry in stats:
+        if not entry.get("children"):
+            entry.pop("children", None)
+
+    return stats
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -246,6 +305,7 @@ def process(job_id):
 
     map_stdout = ""
     map_stderr = ""
+    map_stats = []
     if success:
         vis_script = (BASE_DIR / "visualize_gpx_with_folium.py").resolve()
         fallback_script = (BASE_DIR / "generate_map.py").resolve()
@@ -258,11 +318,15 @@ def process(job_id):
                 [os.fspath(enriched_path), "-o", os.fspath(map_path)],
                 cwd=BASE_DIR,
             )
-            if rc_map != 0 or not map_path.exists():
+            if rc_map == 0 and map_path.exists():
+                map_stats = extract_map_stats(map_stdout)
+            else:
                 success = False
+                map_stats = []
         else:
             map_stderr = "No map generator script available."
             success = False
+            map_stats = []
 
     stdout_combined = "\n".join(filter(None, [out.strip(), map_stdout.strip()]))
     stderr_combined = "\n".join(filter(None, [err.strip(), map_stderr.strip()]))
@@ -286,7 +350,8 @@ def process(job_id):
         distance_step=distance_step,
         search_radius=search_radius,
         original_filename=filename,
-    no_cache=not use_cache,
+        no_cache=not use_cache,
+        map_stats=map_stats,
     )
 
 

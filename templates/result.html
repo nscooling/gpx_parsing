@@ -30,6 +30,13 @@
         }
         .button:hover { background: #1b5fd0; }
         .panel { background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid #d0d7de; box-shadow: 0 8px 24px rgba(140,149,159,0.15); margin-bottom: 1.5rem; }
+        .stats-list { list-style: none; margin: 0; padding: 0; }
+        .stats-list > li { padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0; }
+        .stats-list > li:last-child { border-bottom: none; }
+        .stat-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; font-weight: 500; color: #1f2329; }
+        .stat-value { color: #343a40; font-variant-numeric: tabular-nums; }
+        .stats-sublist { list-style: none; margin: 0.35rem 0 0 0; padding: 0; color: #4a5568; font-size: 0.95rem; }
+        .stats-sublist li { padding: 0.15rem 0; }
         footer { margin-top: 2rem; font-size: 0.95rem; }
     </style>
 </head>
@@ -66,10 +73,31 @@
         </div>
         {% endif %}
 
+        {% if map_stats %}
         <div class="panel">
-            <h2>Standard Output</h2>
-            <pre>{{ stdout or "(no output)" }}</pre>
+            <h2>Map Statistics</h2>
+            <p style="color:#555;">Quick snapshot of what the map generator found.</p>
+            <ul class="stats-list">
+                {% for item in map_stats %}
+                <li>
+                    <div class="stat-row">
+                        <span class="stat-label">{{ item.label }}</span>
+                        {% if item.value %}
+                        <span class="stat-value">{{ item.value }}</span>
+                        {% endif %}
+                    </div>
+                    {% if item.children %}
+                    <ul class="stats-sublist">
+                        {% for child in item.children %}
+                        <li>{{ child.label }}{% if child.value %}: {{ child.value }}{% endif %}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
         </div>
+        {% endif %}
 
         <div class="panel">
             <h2>Standard Error</h2>
