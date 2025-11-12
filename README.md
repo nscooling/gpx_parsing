@@ -2,6 +2,11 @@
 
 This adds a simple Flask app to upload a GPX file, validate it, enrich it with amenities via Overpass, and render an interactive Folium map. You can download the enriched GPX and the generated HTML map.
 
+## ToDo
+
+* add converience stores
+* add supermarkets
+
 ## Quick start
 
 1. Create/activate a virtualenv (optional if you already have one)
